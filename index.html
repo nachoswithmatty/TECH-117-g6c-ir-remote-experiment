@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Infrared Remote Control Experiment</title>
+
+  <!-- Prism.js syntax highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
+
+  <!-- Includes the stylesheet file styles.css -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <!-- Fixed Navigation Menu -->
+  <nav id="menu">
+    <h3>Menu</h3>
+    <ul>
+      <li><a href="#top">Title</a></li>
+      <li><a href="#information">Project Information</a></li>
+      <li><a href="#introduction">Introduction</a></li>
+      <li><a href="#circuit-diagram">Circuit</a></li>
+      <li><a href="#environment">Environment</a></li>
+      <li><a href="#bom">BoM</a></li>
+      <li><a href="#prototype">Prototype</a></li>
+      <li><a href="#code">Code</a></li>
+      <li><a href="#conclusion">Conclusion</a></li>
+      <li><a href="#references">References</a></li>
+    </ul>
+  </nav>
+
+
+  <h1 id="top">Infrared Remote Control Experiment</h1>
+
+  <section id="information">
+    <h2>Project Information</h2>
+    <p><strong>Course:</strong> TECH 117 (Computer Engineering Technology, Fall 2025)</p>
+    <p><strong>Instructor:</strong> Ph.D. Ana Rodrigues</p>
+    <p><strong>Team Members:</strong></p>
+    <ul>
+      <li>Matteo Vuceta</li>
+      <li>Kaden Gonzalez-Layne</li>
+      <li>Mike Stan</li>
+      
+    </ul>
+  </section>
+
+  <section id="introduction">
+    <h2>Introduction</h2>
+    <p>This project uses an <strong>Arduino Uno</strong>, an <strong> IR Remote </strong>, an
+      <strong> IR Receiver Module</strong>, a <strong> pushbutton </strong>, and a <strong> LED strip </strong> to turn on lights depending on what button is pressed on the ir remote and pushbutton.
+  </section>
+
+  <section id="circuit-diagram">
+    <h2>Circuit Diagram</h2>
+    <p>The IR receiver module recieves a signal from the IR Remote or if the pushbutton is pressed; the Arduino activates LEDs and the turns them on according to which button is pressed.</p>
+    <img src="IR circuit design LED.jpg" alt="IR circuit diagram">
+  </section>
+
+  <section id="environment">
+    <h2>Environmental Impact Assessment</h2>
+    <ul>
+      <li><strong>Materials:</strong> The Arduino Uno is RoHS and WEEE compliant, limiting hazardous substances.
+      </li>
+      <li><strong>Energy Efficiency:</strong> The circuit draws minimal power (~50 mA at 5V), ideal for USB or
+        solar power.</li>
+      <li><strong>Reusability:</strong> All components are modular and reusable, reducing electronic waste.</li>
+      <li><strong>Packaging & Shipping:</strong> Ordering all components from a single supplier helps minimize
+        carbon footprint.</li>
+    </ul>
+  </section>
+
+  <section id="bom">
+    <h2>Bill of Materials (BoM)</h2>
+   <table>
+  <tr>
+    <th>Item</th>
+    <th>Description</th>
+    <th>Qty</th>
+    <th>Specifications</th>
+    <th>Estimated Costs (CAD)</th>
+    <th>Supplier/Part Number</th>
+  </tr>
+  <tr>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>1</td>
+    <td>UNO R3</td>
+    <td>1</td>
+    <td>5V microcontroller, ATmega328P</td>
+    <td>$20.00</td>
+    <td>SKU A000066 Arduino UNO Rev3 – Reliable ATmega328P Board with Digital & Analog I/O — Arduino Online Shop</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>IR Remote</td>
+    <td>1</td>
+    <td>38KHz infrared remote</td>
+    <td>$2.00</td>
+    <td>SKU: ACC-085 Mini IR Remote - Black - BC Robotics</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>IR Receiver Module</td>
+    <td>1</td>
+    <td>1838 infrared receiving head</td>
+    <td>$1.00</td>
+    <td>Generic 3Pin KY-022 TL1838 VS1838B 1838 Universal IR Infrared Sensor Receiver Module DIY Starter Kit : Amazon.ca: Electronics</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td>USB Cable</td>
+    <td>1</td>
+    <td>USB-B Male to USB-A Male</td>
+    <td>$15.00</td>
+    <td>Generic Cmple - USB Printer Cable USB 2.0 A Male to B Male USB Cord for Printers, Scanners, External Hard Drives Camera - 3 Feet, Black : Amazon.ca: Electronics</td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td>Breadboard</td>
+    <td>1</td>
+    <td>830 Tie-points Breadboard</td>
+    <td>$9.80</td>
+    <td>LS-00019 OSEPP Electronics | Mouser Canada</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td>Jumper Wires</td>
+    <td>several</td>
+    <td>Male to male, 20cm; Female to female 20cm</td>
+    <td>$4.33</td>
+    <td>Amazon | Male-to-Male, Female-to-Female Jumper Cables</td>
+  </tr>
+  <tr>
+    <td>7</td>
+    <td>Resistors (for LED)</td>
+    <td>5</td>
+    <td>220Ohms ± 1%</td>
+    <td>$0.63</td>
+    <td>AliExpress 220 Ohm 100pcs</td>
+  </tr>
+  <tr>
+    <td>8</td>
+    <td>Computer (for programming)</td>
+    <td>1</td>
+    <td>Any with Arduino IDE installed</td>
+    <td>-</td>
+    <td>-</td>
+  </tr>
+  <tr>
+    <td>9</td>
+    <td>RGB LED</td>
+    <td>1</td>
+    <td>Forward Voltage: 3.0-3.4V, 20mA/channel, 35mm</td>
+    <td>$3.25</td>
+    <td>AliExpress RGB LED 100pcs</td>
+  </tr>
+  <tr>
+    <td>10</td>
+    <td>3D printed shell</td>
+    <td>1</td>
+    <td>A Box containing the components with an extuding panel housing the leds with an art piece on the panel</td>
+    <td>-</td>
+    <td>-</td>
+  </tr>
+  <tr>
+    <td>11</td>
+    <td>Blue LED</td>
+    <td>1</td>
+    <td>20mA, 2V Forward Voltage, 5mm</td>
+    <td>$0.99</td>
+    <td>Basic 5mm LED (1x Blue) in Canada Robotix</td>
+  </tr>
+  <tr>
+    <td>12</td>
+    <td>Yellow LED</td>
+    <td>1</td>
+    <td>20mA, 2V Forward Voltage, 5mm</td>
+    <td>$0.25</td>
+    <td>5mm Yellow LED - Basic - 1.8V 20mA - BC Robotics</td>
+  </tr>
+</table>
+
+  </section>
+
+  <section id="prototype">
+    <h2>Prototype</h2>
+    <p>The following image shows the assembled prototype on a breadboard.</p>
+    <img src="prototype.jpg" alt="Collision warning system prototype">
+  </section>
+
+  <section id="code">
+    <h2>Arduino Code</h2>
+    <p>The following Arduino code controls the system, lighting LEDs and activating the buzzer based on distance
+      readings from the HC-SR04 sensor.</p>
+
+    <pre class="line-numbers">
+  <button class="copy-btn" onclick="copyCode()">Copy</button>
+  <code id="arduinoCode" class="language-cpp">
+// Collision Warning System with Distance Sensor (HC-SR04)
+// Author: Ana Rodrigues
+// Oct 2, 2025
+// Object is farther than 50cm: Green LED lights up
+// Object is closer than 50 cm, but more than 10cm away: Yellow LED lights, buzzer plays 300Hz tone
+// Object is closer than 10cm: Red LED lights up, buzzer plays 500Hz tone
+
+//LED pins
+const int greenLED = 2;
+const int yellowLED = 3;
+const int redLED = 4;
+
+// Ultrasonic sensor pins
+const int trigPin = 9;
+const int echoPin = 10;
+
+// Passive buzzer pin
+const int buzzer = 11;
+
+void setup() {
+  pinMode(greenLED, OUTPUT);
+  pinMode(yellowLED, OUTPUT);
+  pinMode(redLED, OUTPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  Serial.begin(9600);
+}
+
+void loop() {
+  // Measure distance
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  long duration = pulseIn(echoPin, HIGH);
+  long distance = duration * 0.034 / 2;
+
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+  
+  //Error in measurement:
+  if (distance <= 0)
+    return;
+
+  //Too close:
+  if (distance <= 10) {
+    digitalWrite(greenLED, LOW);
+    digitalWrite(yellowLED, LOW);
+    digitalWrite(redLED, HIGH);
+    tone(buzzer, 500); // Play 500Hz tone
+    return;
+  }
+
+  //Midrange:
+  if (distance <= 30) {
+    digitalWrite(greenLED, LOW);
+    digitalWrite(yellowLED, HIGH);
+    digitalWrite(redLED, LOW);
+    tone(buzzer, 300); // Play 300Hz tone
+    return;
+  }
+
+  //Normal status:
+  digitalWrite(greenLED, HIGH);
+  digitalWrite(yellowLED, LOW);
+  digitalWrite(redLED, LOW);
+  noTone(buzzer); // stop buzzer
+
+  delay(100);
+}
+    </code></pre>
+
+    <script>
+      function copyCode() {
+        const code = document.getElementById('arduinoCode').innerText;
+        navigator.clipboard.writeText(code).then(() => {
+          alert('Code copied to clipboard!');
+        });
+      }
+    </script>
+  </section>
+
+
+
+  <section id="conclusion">
+    <h2>Conclusion</h2>
+    <p>The system effectively demonstrates distance-based alerting using Arduino. It’s affordable, educational, and
+      sustainable through reusable components.</p>
+  </section>
+
+ <section id="references">
+  <h2>References</h2>
+  <p>
+    The following external resources and example projects demonstrate related Arduino applications 
+    using ultrasonic distance sensors, passive buzzers, and multicolour LEDs:
+  </p>
+
+  <ul>
+    <li>
+      Arduino Project Hub. (n.d.). 
+      <em>Ultrasonic sensor projects.</em> 
+      Arduino Project Hub. 
+      <a href="https://projecthub.arduino.cc/projects/tags/ultrasonic-sensor" target="_blank" rel="noopener noreferrer">
+        https://projecthub.arduino.cc/projects/tags/ultrasonic-sensor
+      </a>
+    </li>
+
+    <li>
+      Arduino Project Hub. (n.d.). 
+      <em>Buzzer projects.</em> 
+      Arduino Project Hub. 
+      <a href="https://create.arduino.cc/projecthub/projects/tags/buzzer" target="_blank" rel="noopener noreferrer">
+        https://create.arduino.cc/projecthub/projects/tags/buzzer
+      </a>
+    </li>
+
+    <li>
+      Arduino Project Hub. (n.d.). 
+      <em>LED projects.</em> 
+      Arduino Project Hub. 
+      <a href="https://projecthub.arduino.cc/projects/tags/led" target="_blank" rel="noopener noreferrer">
+        https://projecthub.arduino.cc/projects/tags/led
+      </a>
+    </li>
+
+    <li>
+      Instructables. (n.d.). 
+      <em>Distance measurement using ultrasonic sensor.</em> 
+      Instructables. 
+      <a href="https://www.instructables.com/Arduino-Distance-Measurement-Using-Ultrasonic-Senso/" target="_blank" rel="noopener noreferrer">
+        https://www.instructables.com/Arduino-Distance-Measurement-Using-Ultrasonic-Senso/
+      </a>
+    </li>
+
+    <li>
+      Circuit Basics. (n.d.). 
+      <em>How to use an ultrasonic sensor with Arduino.</em> 
+      Circuit Basics. 
+      <a href="https://www.circuitbasics.com/how-to-use-an-ultrasonic-sensor-with-arduino/" target="_blank" rel="noopener noreferrer">
+        https://www.circuitbasics.com/how-to-use-an-ultrasonic-sensor-with-arduino/
+      </a>
+    </li>
+
+    <li>
+      Last Minute Engineers. (n.d.). 
+      <em>Ultrasonic sensor tutorial.</em> 
+      Last Minute Engineers. 
+      <a href="https://lastminuteengineers.com/ultrasonic-sensor-arduino-tutorial/" target="_blank" rel="noopener noreferrer">
+        https://lastminuteengineers.com/ultrasonic-sensor-arduino-tutorial/
+      </a>
+    </li>
+  </ul>
+</section>
+
+
+
+</body>
+
+</html>
