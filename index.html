@@ -197,7 +197,7 @@
   <section id="prototype">
     <h2>Prototype</h2>
     <p>The following image shows the assembled prototype on a breadboard.</p>
-    <img src="prototype.jpg" alt="Collision warning system prototype">
+    <img src="prototype - 1.jpg" alt="Infrared Remote control prototype">
   </section>
 
   <section id="code">
@@ -208,78 +208,126 @@
     <pre class="line-numbers">
   <button class="copy-btn" onclick="copyCode()">Copy</button>
   <code id="arduinoCode" class="language-cpp">
-// Collision Warning System with Distance Sensor (HC-SR04)
-// Author: Ana Rodrigues
-// Oct 2, 2025
-// Object is farther than 50cm: Green LED lights up
-// Object is closer than 50 cm, but more than 10cm away: Yellow LED lights, buzzer plays 300Hz tone
-// Object is closer than 10cm: Red LED lights up, buzzer plays 500Hz tone
+#include <Adafruit_NeoPixel.h>
+#include <IRremote.hpp>  // Tinkercad uses the newer .hpp library
 
-//LED pins
-const int greenLED = 2;
-const int yellowLED = 3;
-const int redLED = 4;
+// Pin definitions
+#define LED_PIN     6
+#define IR_PIN      A0  // Change this if your IR receiver is on a different pin
 
-// Ultrasonic sensor pins
-const int trigPin = 9;
-const int echoPin = 10;
+// LED settings
+#define NUM_LEDS    8
+#define MAX_BRIGHTNESS 153  // 60% of 255
 
-// Passive buzzer pin
-const int buzzer = 11;
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+// Pattern tracking
+int currentPattern = 0; // 0=beam struggle, 1=all blue, 2=all purple
+unsigned long lastAnimationUpdate = 0;
+int animationStep = 0;
 
 void setup() {
-  pinMode(greenLED, OUTPUT);
-  pinMode(yellowLED, OUTPUT);
-  pinMode(redLED, OUTPUT);
-  pinMode(trigPin, OUTPUT);
-  pinMode(echoPin, INPUT);
   Serial.begin(9600);
+  
+  // Initialize NeoPixels with 60% brightness
+  strip.begin();
+  strip.setBrightness(MAX_BRIGHTNESS);
+  strip.show();
+  
+  // Initialize IR receiver with Tinkercad's library
+  IrReceiver.begin(IR_PIN, ENABLE_LED_FEEDBACK);
+  
+  Serial.println("Dragon Ball Z LED Controller Ready!");
+  Serial.println("Button 69: Beam Struggle, Button 70: All Blue, Button 71: All Purple");
 }
 
 void loop() {
-  // Measure distance
-  digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
-  digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
-
-  long duration = pulseIn(echoPin, HIGH);
-  long distance = duration * 0.034 / 2;
-
-  Serial.print("Distance: ");
-  Serial.print(distance);
-  Serial.println(" cm");
+  // Check IR remote for pattern changes
+  if (IrReceiver.decode()) {
+    handleIRCommand(IrReceiver.decodedIRData.command);
+    IrReceiver.resume();
+  }
   
-  //Error in measurement:
-  if (distance <= 0)
-    return;
-
-  //Too close:
-  if (distance <= 10) {
-    digitalWrite(greenLED, LOW);
-    digitalWrite(yellowLED, LOW);
-    digitalWrite(redLED, HIGH);
-    tone(buzzer, 500); // Play 500Hz tone
-    return;
+  // If in beam struggle pattern, run animation
+  if (currentPattern == 0) {
+    runBeamStruggleAnimation();
   }
+  
+  delay(50);
+}
 
-  //Midrange:
-  if (distance <= 30) {
-    digitalWrite(greenLED, LOW);
-    digitalWrite(yellowLED, HIGH);
-    digitalWrite(redLED, LOW);
-    tone(buzzer, 300); // Play 300Hz tone
-    return;
+void handleIRCommand(unsigned long command) {
+  Serial.print("IR Command: ");
+  Serial.println(command);
+  
+  switch(command) {
+    case 69: // Button 1: Beam struggle animation
+      currentPattern = 0;
+      Serial.println("Pattern: Beam Struggle Animation");
+      break;
+    case 70: // Button 2: All blue
+      currentPattern = 1;
+      patternAllBlue();
+      Serial.println("Pattern: All Blue");
+      break;
+    case 71: // Button 3: All purple
+      currentPattern = 2;
+      patternAllPurple();
+      Serial.println("Pattern: All Purple");
+      break;
+    default:
+      Serial.print("Unknown command: ");
+      Serial.println(command);
+      break;
   }
+}
 
-  //Normal status:
-  digitalWrite(greenLED, HIGH);
-  digitalWrite(yellowLED, LOW);
-  digitalWrite(redLED, LOW);
-  noTone(buzzer); // stop buzzer
+// PATTERN 1: Animated beam struggle
+void runBeamStruggleAnimation() {
+  if (millis() - lastAnimationUpdate > 200) { // Update every 200ms
+    lastAnimationUpdate = millis();
+    
+    strip.clear();
+    
+    // Animate the beam struggle - beams push back and forth
+    int beamMeetingPoint = 4 + sin(animationStep * 0.5) * 2; // Oscillates between ~2-6
+    
+    // Goku's beam (blue) from left
+    for (int i = 0; i < beamMeetingPoint; i++) {
+      strip.setPixelColor(i, 0, 0, 255);  // Blue
+    }
+    
+    // Vegeta's beam (purple) from right
+    for (int i = NUM_LEDS - 1; i >= beamMeetingPoint; i--) {
+      strip.setPixelColor(i, 255, 0, 255);  // Purple
+    }
+    
+    // Beam clash point (white with sparkle effect)
+    strip.setPixelColor(beamMeetingPoint, 255, 255, 255);
+    if (beamMeetingPoint > 0) strip.setPixelColor(beamMeetingPoint - 1, 128, 128, 255);
+    if (beamMeetingPoint < NUM_LEDS - 1) strip.setPixelColor(beamMeetingPoint + 1, 255, 128, 255);
+    
+    strip.show();
+    animationStep++;
+  }
+}
 
-  delay(100);
+// PATTERN 2: All blue (static)
+void patternAllBlue() {
+  strip.clear();
+  for (int i = 0; i < NUM_LEDS; i++) {
+    strip.setPixelColor(i, 0, 0, 255);  // Blue
+  }
+  strip.show();
+}
+
+// PATTERN 3: All purple (static)
+void patternAllPurple() {
+  strip.clear();
+  for (int i = 0; i < NUM_LEDS; i++) {
+    strip.setPixelColor(i, 255, 0, 255);  // Purple
+  }
+  strip.show();
 }
     </code></pre>
 
@@ -297,7 +345,7 @@ void loop() {
 
   <section id="conclusion">
     <h2>Conclusion</h2>
-    <p>The system effectively demonstrates distance-based alerting using Arduino. It’s affordable, educational, and
+    <p>The system effectively demonstrates using infrared remote with an remote and a pushbutton to light up LEDs using Arduino. It’s affordable, educational, and
       sustainable through reusable components.</p>
   </section>
 
@@ -305,61 +353,37 @@ void loop() {
   <h2>References</h2>
   <p>
     The following external resources and example projects demonstrate related Arduino applications 
-    using ultrasonic distance sensors, passive buzzers, and multicolour LEDs:
+    using an Arduino Uno, an IR Remote , an IR Receiver Module, a pushbutton , and a LED strip:
   </p>
 
   <ul>
     <li>
-      Arduino Project Hub. (n.d.). 
-      <em>Ultrasonic sensor projects.</em> 
-      Arduino Project Hub. 
-      <a href="https://projecthub.arduino.cc/projects/tags/ultrasonic-sensor" target="_blank" rel="noopener noreferrer">
-        https://projecthub.arduino.cc/projects/tags/ultrasonic-sensor
-      </a>
-    </li>
-
-    <li>
-      Arduino Project Hub. (n.d.). 
-      <em>Buzzer projects.</em> 
-      Arduino Project Hub. 
-      <a href="https://create.arduino.cc/projecthub/projects/tags/buzzer" target="_blank" rel="noopener noreferrer">
-        https://create.arduino.cc/projecthub/projects/tags/buzzer
-      </a>
-    </li>
-
-    <li>
-      Arduino Project Hub. (n.d.). 
-      <em>LED projects.</em> 
-      Arduino Project Hub. 
-      <a href="https://projecthub.arduino.cc/projects/tags/led" target="_blank" rel="noopener noreferrer">
-        https://projecthub.arduino.cc/projects/tags/led
-      </a>
-    </li>
-
-    <li>
-      Instructables. (n.d.). 
-      <em>Distance measurement using ultrasonic sensor.</em> 
-      Instructables. 
-      <a href="https://www.instructables.com/Arduino-Distance-Measurement-Using-Ultrasonic-Senso/" target="_blank" rel="noopener noreferrer">
-        https://www.instructables.com/Arduino-Distance-Measurement-Using-Ultrasonic-Senso/
+      adafruit. (n.d.). 
+      <em>Adafruit NeoPixel Überguide.</em> 
+      adafruit. 
+      <a href="https://learn.adafruit.com/adafruit-neopixel-uberguide/basic-connections" target="_blank" rel="noopener noreferrer">
+        https://learn.adafruit.com/adafruit-neopixel-uberguide/basic-connections
       </a>
     </li>
 
     <li>
       Circuit Basics. (n.d.). 
-      <em>How to use an ultrasonic sensor with Arduino.</em> 
+      <em>How to Set Up an IR Remote and Receiver on an Arduino.</em> 
       Circuit Basics. 
-      <a href="https://www.circuitbasics.com/how-to-use-an-ultrasonic-sensor-with-arduino/" target="_blank" rel="noopener noreferrer">
-        https://www.circuitbasics.com/how-to-use-an-ultrasonic-sensor-with-arduino/
+      <a href="https://www.circuitbasics.com/arduino-ir-remote-receiver-tutorial/" target="_blank" rel="noopener noreferrer">
+        https://www.circuitbasics.com/arduino-ir-remote-receiver-tutorial/
       </a>
     </li>
 
     <li>
-      Last Minute Engineers. (n.d.). 
-      <em>Ultrasonic sensor tutorial.</em> 
-      Last Minute Engineers. 
-      <a href="https://lastminuteengineers.com/ultrasonic-sensor-arduino-tutorial/" target="_blank" rel="noopener noreferrer">
-        https://lastminuteengineers.com/ultrasonic-sensor-arduino-tutorial/
+      Arduino Project Hub. (n.d.). 
+      <em>Decode IR Remote Control Signals of any Remote Using Arduino.</em> 
+      Arduino Project Hub. 
+      <a href="https://projecthub.arduino.cc/krishna_agarwal/decode-ir-remote-control-signals-of-any-remote-using-arduino-9b8e30" target="_blank" rel="noopener noreferrer">
+        https://projecthub.arduino.cc/krishna_agarwal/decode-ir-remote-control-signals-of-any-remote-using-arduino-9b8e30
+      </a>
+    </li>
+
       </a>
     </li>
   </ul>
