@@ -209,123 +209,544 @@
   <button class="copy-btn" onclick="copyCode()">Copy</button>
   <code id="arduinoCode" class="language-cpp">
 #include <Adafruit_NeoPixel.h>
-#include <IRremote.hpp>  // Tinkercad uses the newer .hpp library
+#include <IRremote.hpp>
 
-// Pin definitions
-#define LED_PIN     6
-#define IR_PIN      A0  // Change this if your IR receiver is on a different pin
-
-// LED settings
-#define NUM_LEDS    8
-#define MAX_BRIGHTNESS 153  // 60% of 255
+// ===== HARDWARE SETTINGS =====
+#define LED_PIN       6
+#define IR_PIN        2
+#define BUTTON_PIN    3
+#define NUM_LEDS      8
+#define MAX_BRIGHTNESS 150
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-// Pattern tracking
-int currentPattern = 0; // 0=beam struggle, 1=all blue, 2=all purple
-unsigned long lastAnimationUpdate = 0;
-int animationStep = 0;
+// ===== GAME STATE =====
+bool gameModeActive = false;
+bool gameRunning = false;
 
-void setup() {
-  Serial.begin(9600);
-  
-  // Initialize NeoPixels with 60% brightness
-  strip.begin();
-  strip.setBrightness(MAX_BRIGHTNESS);
-  strip.show();
-  
-  // Initialize IR receiver with Tinkercad's library
-  IrReceiver.begin(IR_PIN, ENABLE_LED_FEEDBACK);
-  
-  Serial.println("Dragon Ball Z LED Controller Ready!");
-  Serial.println("Button 69: Beam Struggle, Button 70: All Blue, Button 71: All Purple");
+// LED tracking: 0=blue, 1=purple, 2=white (contested)
+int ledStates[NUM_LEDS] = {0};
+
+// Game scoring
+int playerScore = 0;
+int computerScore = 0;
+int roundsPlayed = 0;
+const int TOTAL_ROUNDS = 22;      // 22 half-second rounds ≈ 11 seconds game
+const int SCORE_TO_WIN = 11;      // Need 11 points to capture all LEDs
+
+// Real hardware button (INTERRUPT DRIVEN)
+volatile int buttonPressCount = 0;
+unsigned long lastInterruptTime = 0;
+
+// Round variables (0.5 seconds!)
+unsigned long roundStartTime = 0;
+int currentRoundTarget = 0;
+bool roundActive = false;
+
+// Frontline tracking
+int frontlineIndex = -1;          // -1 means no frontline yet
+int frontlineOwner = -1;          // -1=neutral, 0=player facing, 1=computer facing
+
+// IR control
+int currentPattern = 0;
+
+// ===== INTERRUPT SERVICE ROUTINE =====
+void buttonISR() {
+  unsigned long currentTime = millis();
+  // Real hardware: 50ms debounce for fast mashing
+  if (currentTime - lastInterruptTime > 50) {
+    buttonPressCount++;
+    lastInterruptTime = currentTime;
+  }
 }
 
+// ===== SETUP =====
+void setup() {
+  Serial.begin(115200); // Faster for half-second rounds
+  
+  // Initialize NeoPixels
+  strip.begin();
+  strip.setBrightness(MAX_BRIGHTNESS);
+  
+  // Initialize IR receiver
+  IrReceiver.begin(IR_PIN, ENABLE_LED_FEEDBACK);
+  
+  // Initialize button with INTERRUPT
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonISR, FALLING);
+  
+  // Initialize LED states: half blue, half purple
+  for (int i = 0; i < NUM_LEDS; i++) {
+    ledStates[i] = (i < NUM_LEDS/2) ? 0 : 1; // 0=blue, 1=purple
+  }
+  frontlineIndex = -1; // No frontline initially
+  frontlineOwner = -1;
+  
+  updateLEDDisplay();
+  
+  Serial.println(F("=== DRAGON BALL Z: ADVANCED BEAM STRUGGLE ==="));
+  Serial.println(F("IR: 69=Anim, 70=Blue, 71=Purple, 72=GameMode"));
+  Serial.println(F("0.5-second rounds! White=contested territory"));
+}
+
+// ===== MAIN LOOP =====
 void loop() {
-  // Check IR remote for pattern changes
+  // Check IR remote
   if (IrReceiver.decode()) {
     handleIRCommand(IrReceiver.decodedIRData.command);
     IrReceiver.resume();
   }
   
-  // If in beam struggle pattern, run animation
-  if (currentPattern == 0) {
-    runBeamStruggleAnimation();
+  // Run current mode
+  if (gameRunning) {
+    runGame();
+  } else {
+    if (gameModeActive) {
+      showGameModeIndicator();
+    } else if (currentPattern == 0) {
+      runBeamStruggleAnimation();
+    }
   }
   
-  delay(50);
+  delay(10);
 }
 
+// ===== IR COMMAND HANDLER =====
 void handleIRCommand(unsigned long command) {
-  Serial.print("IR Command: ");
+  Serial.print(F("IR: "));
   Serial.println(command);
   
   switch(command) {
-    case 69: // Button 1: Beam struggle animation
+    case 69: // Animation
       currentPattern = 0;
-      Serial.println("Pattern: Beam Struggle Animation");
+      gameModeActive = false;
+      gameRunning = false;
       break;
-    case 70: // Button 2: All blue
+    case 70: // All Blue
       currentPattern = 1;
+      gameModeActive = false;
+      gameRunning = false;
       patternAllBlue();
-      Serial.println("Pattern: All Blue");
       break;
-    case 71: // Button 3: All purple
+    case 71: // All Purple
       currentPattern = 2;
+      gameModeActive = false;
+      gameRunning = false;
       patternAllPurple();
-      Serial.println("Pattern: All Purple");
       break;
-    default:
-      Serial.print("Unknown command: ");
-      Serial.println(command);
+    case 72: // Game Mode
+      if (!gameRunning) {
+        gameModeActive = true;
+        currentPattern = 3;
+        Serial.println(F("GAME MODE: Press button to start!"));
+      }
       break;
   }
 }
 
-// PATTERN 1: Animated beam struggle
-void runBeamStruggleAnimation() {
-  if (millis() - lastAnimationUpdate > 200) { // Update every 200ms
-    lastAnimationUpdate = millis();
+// ===== GAME MODE INDICATOR =====
+void showGameModeIndicator() {
+  static unsigned long lastPulse = 0;
+  static bool pulseState = false;
+  
+  if (millis() - lastPulse > 400) {
+    lastPulse = millis();
+    pulseState = !pulseState;
     
+    // Orange pulse for game mode
+    if (pulseState) {
+      for (int i = 0; i < NUM_LEDS; i++) {
+        strip.setPixelColor(i, 255, 165, 0);
+      }
+    } else {
+      strip.clear();
+    }
+    strip.show();
+  }
+}
+
+// ===== GAME FUNCTIONS =====
+void startGame() {
+  gameRunning = true;
+  gameModeActive = false;
+  
+  // Reset game state
+  playerScore = 0;
+  computerScore = 0;
+  roundsPlayed = 0;
+  
+  // Reset LED states: half blue, half purple
+  for (int i = 0; i < NUM_LEDS; i++) {
+    ledStates[i] = (i < NUM_LEDS/2) ? 0 : 1;
+  }
+  frontlineIndex = -1;
+  frontlineOwner = -1;
+  
+  updateLEDDisplay();
+  
+  // Start first round
+  startNewRound();
+  
+  Serial.println(F("\n=== GAME STARTED ==="));
+  Serial.println(F("0.5-second rounds! White LEDs are contested!"));
+  Serial.println(F("Win twice to capture a contested LED!"));
+}
+
+void startNewRound() {
+  roundActive = true;
+  roundStartTime = millis();
+  
+  // Reset interrupt counter safely
+  noInterrupts();
+  buttonPressCount = 0;
+  interrupts();
+  
+  roundsPlayed++;
+  
+  // HALF-SECOND TARGETS for real hardware
+  if (roundsPlayed <= 8) {
+    currentRoundTarget = random(4, 8);    // 4-7 clicks in 0.5s
+  } else if (roundsPlayed <= 16) {
+    currentRoundTarget = random(5, 9);    // 5-8 clicks
+  } else {
+    currentRoundTarget = random(6, 10);   // 6-9 clicks
+  }
+  
+  Serial.print(F("\n[Round "));
+  Serial.print(roundsPlayed);
+  Serial.print(F("/"));
+  Serial.print(TOTAL_ROUNDS);
+  Serial.print(F("] Target: "));
+  Serial.print(currentRoundTarget);
+  Serial.print(F(" in 0.5s | Score: "));
+  Serial.print(playerScore);
+  Serial.print(F("-"));
+  Serial.print(computerScore);
+  
+  if (frontlineIndex != -1) {
+    Serial.print(F(" | Frontline: LED#"));
+    Serial.print(frontlineIndex);
+    Serial.print(F(" ("));
+    Serial.print(frontlineOwner == 0 ? F("Blue-facing") : F("Purple-facing"));
+    Serial.print(F(")"));
+  }
+  Serial.println();
+}
+
+void runGame() {
+  if (!roundActive) return;
+  
+  unsigned long currentTime = millis();
+  
+  // HALF-SECOND ROUNDS!
+  if (currentTime - roundStartTime >= 500) {
+    endRound();
+    
+    // Check for game end
+    if (playerScore >= SCORE_TO_WIN || computerScore >= SCORE_TO_WIN || roundsPlayed >= TOTAL_ROUNDS) {
+      endGame();
+    } else {
+      delay(150); // Very brief pause between 0.5s rounds
+      startNewRound();
+    }
+  }
+  
+  // Visual feedback during round
+  updateLEDDisplay();
+}
+
+void endRound() {
+  roundActive = false;
+  
+  // Safely read interrupt counter
+  noInterrupts();
+  int pressesThisRound = buttonPressCount;
+  interrupts();
+  
+  Serial.print(F("Pressed: "));
+  Serial.print(pressesThisRound);
+  Serial.print(F("/"));
+  Serial.print(currentRoundTarget);
+  
+  // Determine winner and update LED states
+  bool playerWon = (pressesThisRound >= currentRoundTarget);
+  
+  if (playerWon) {
+    playerScore++;
+    Serial.println(F(" - PLAYER WINS ROUND!"));
+    updateLEDStates(true); // Player won
+  } else {
+    computerScore++;
+    Serial.println(F(" - COMPUTER WINS ROUND!"));
+    updateLEDStates(false); // Computer won
+  }
+  
+  updateLEDDisplay();
+}
+
+// ===== NEW ADVANCED LED STATE MANAGEMENT =====
+void updateLEDStates(bool playerWon) {
+  int winner = playerWon ? 0 : 1; // 0=blue/player, 1=purple/computer
+  
+  if (frontlineIndex == -1) {
+    // No frontline yet - create one at the boundary
+    if (playerWon) {
+      // Player wins: create frontline at first purple position
+      frontlineIndex = NUM_LEDS/2; // First purple LED
+      frontlineOwner = 0; // Player-facing (blue wants to claim it)
+      ledStates[frontlineIndex] = 2; // Make it white
+    } else {
+      // Computer wins: create frontline at last blue position
+      frontlineIndex = NUM_LEDS/2 - 1; // Last blue LED
+      frontlineOwner = 1; // Computer-facing (purple wants to claim it)
+      ledStates[frontlineIndex] = 2; // Make it white
+    }
+  } else {
+    // Frontline exists
+    if (playerWon) {
+      if (frontlineOwner == 0) {
+        // Frontline already faces player - convert white to blue
+        ledStates[frontlineIndex] = 0; // White -> Blue
+        
+        // Move frontline to next purple position
+        int nextIndex = frontlineIndex + 1;
+        if (nextIndex < NUM_LEDS && ledStates[nextIndex] == 1) {
+          // There's more purple territory to contest
+          frontlineIndex = nextIndex;
+          ledStates[frontlineIndex] = 2; // New white frontline
+          // frontlineOwner stays 0 (still player-facing)
+        } else {
+          // No more purple territory - reset frontline
+          frontlineIndex = -1;
+          frontlineOwner = -1;
+        }
+      } else {
+        // Frontline faces computer - flip it to player-facing
+        frontlineOwner = 0;
+        // LED stays white but now faces player
+      }
+    } else {
+      // Computer won
+      if (frontlineOwner == 1) {
+        // Frontline already faces computer - convert white to purple
+        ledStates[frontlineIndex] = 1; // White -> Purple
+        
+        // Move frontline to next blue position
+        int nextIndex = frontlineIndex - 1;
+        if (nextIndex >= 0 && ledStates[nextIndex] == 0) {
+          // There's more blue territory to contest
+          frontlineIndex = nextIndex;
+          ledStates[frontlineIndex] = 2; // New white frontline
+          // frontlineOwner stays 1 (still computer-facing)
+        } else {
+          // No more blue territory - reset frontline
+          frontlineIndex = -1;
+          frontlineOwner = -1;
+        }
+      } else {
+        // Frontline faces player - flip it to computer-facing
+        frontlineOwner = 1;
+        // LED stays white but now faces computer
+      }
+    }
+  }
+}
+
+void updateLEDDisplay() {
+  // First pass: set all LEDs to their base colors
+  for (int i = 0; i < NUM_LEDS; i++) {
+    switch(ledStates[i]) {
+      case 0: // Blue
+        strip.setPixelColor(i, 0, 0, 255);
+        break;
+      case 1: // Purple
+        strip.setPixelColor(i, 255, 0, 255);
+        break;
+      case 2: // White (contested)
+        // Make white LEDs brighter and pulse during active rounds
+        if (roundActive) {
+          unsigned long pulsePhase = (millis() - roundStartTime) % 200;
+          int brightness = (pulsePhase < 100) ? 255 : 150;
+          strip.setPixelColor(i, brightness, brightness, brightness);
+        } else {
+          strip.setPixelColor(i, 255, 255, 255);
+        }
+        break;
+    }
+  }
+  
+  // Highlight the frontline with directional indicator
+  if (frontlineIndex != -1 && roundActive) {
+    // Show which direction the frontline faces
+    if (frontlineOwner == 0) {
+      // Player-facing: add blue tint to right side
+      if (frontlineIndex < NUM_LEDS - 1) {
+        strip.setPixelColor(frontlineIndex + 1, 100, 100, 255);
+      }
+    } else {
+      // Computer-facing: add purple tint to left side
+      if (frontlineIndex > 0) {
+        strip.setPixelColor(frontlineIndex - 1, 255, 100, 255);
+      }
+    }
+  }
+  
+  // Quick progress indicator during active round
+  if (roundActive) {
+    noInterrupts();
+    int currentPresses = buttonPressCount;
+    interrupts();
+    
+    float progress = min(1.0, (float)currentPresses / currentRoundTarget);
+    int progressLED = frontlineIndex + (frontlineOwner == 0 ? 1 : -1);
+    
+    if (progressLED >= 0 && progressLED < NUM_LEDS) {
+      // Show progress as green intensity
+      int greenValue = (int)(progress * 255);
+      int currentColor = strip.getPixelColor(progressLED);
+      
+      // Blend green with existing color
+      int r = (currentColor >> 16) & 0xFF;
+      int g = greenValue;
+      int b = currentColor & 0xFF;
+      
+      strip.setPixelColor(progressLED, r, g, b);
+    }
+  }
+  
+  strip.show();
+}
+
+void endGame() {
+  gameRunning = false;
+  
+  Serial.println(F("\n=== GAME OVER ==="));
+  Serial.print(F("Final Score: BLUE "));
+  Serial.print(playerScore);
+  Serial.print(F(" - "));
+  Serial.print(computerScore);
+  Serial.println(F(" PURPLE"));
+  
+  // Count territories
+  int blueCount = 0, purpleCount = 0;
+  for (int i = 0; i < NUM_LEDS; i++) {
+    if (ledStates[i] == 0) blueCount++;
+    else if (ledStates[i] == 1) purpleCount++;
+  }
+  
+  Serial.print(F("Territory: "));
+  Serial.print(blueCount);
+  Serial.print(F(" blue, "));
+  Serial.print(purpleCount);
+  Serial.println(F(" purple"));
+  
+  // Determine winner
+  if (blueCount > purpleCount) {
+    Serial.println(F("✨ BLUE WINS! KAMEHAMEHA DOMINATES! ✨"));
+    playerVictoryAnimation();
+  } else if (purpleCount > blueCount) {
+    Serial.println(F("💥 PURPLE WINS! GALICK GUN PREVAILS! 💥"));
+    computerVictoryAnimation();
+  } else {
+    Serial.println(F("⚡ DRAW! THE BEAMS CANCEL OUT! ⚡"));
+    drawAnimation();
+  }
+  
+  Serial.print(F("Total time: "));
+  Serial.print(roundsPlayed * 0.5);
+  Serial.println(F(" seconds"));
+  
+  delay(3000);
+  currentPattern = 0;
+}
+
+// ===== ANIMATIONS =====
+void playerVictoryAnimation() {
+  // Blue conquest animation
+  for (int cycle = 0; cycle < 6; cycle++) {
+    for (int i = 0; i < NUM_LEDS; i++) {
+      if (cycle % 2 == 0) {
+        strip.setPixelColor(i, 0, 0, 255); // Solid blue
+      } else {
+        strip.setPixelColor(i, 100, 100, 255); // Light blue
+      }
+    }
+    strip.show();
+    delay(150);
+  }
+}
+
+void computerVictoryAnimation() {
+  // Purple conquest animation
+  for (int cycle = 0; cycle < 6; cycle++) {
+    for (int i = 0; i < NUM_LEDS; i++) {
+      if (cycle % 2 == 0) {
+        strip.setPixelColor(i, 255, 0, 255); // Solid purple
+      } else {
+        strip.setPixelColor(i, 255, 100, 255); // Light purple
+      }
+    }
+    strip.show();
+    delay(150);
+  }
+}
+
+void drawAnimation() {
+  // Alternating flash
+  for (int cycle = 0; cycle < 10; cycle++) {
+    if (cycle % 2 == 0) {
+      for (int i = 0; i < NUM_LEDS/2; i++) {
+        strip.setPixelColor(i, 0, 0, 255);
+      }
+      for (int i = NUM_LEDS/2; i < NUM_LEDS; i++) {
+        strip.setPixelColor(i, 255, 0, 255);
+      }
+    } else {
+      strip.fill(strip.Color(255, 255, 255));
+    }
+    strip.show();
+    delay(120);
+  }
+}
+
+// ===== PATTERN FUNCTIONS =====
+void runBeamStruggleAnimation() {
+  static unsigned long lastUpdate = 0;
+  static int step = 0;
+  
+  if (millis() - lastUpdate > 250) { // Slightly faster animation
+    lastUpdate = millis();
     strip.clear();
     
-    // Animate the beam struggle - beams push back and forth
-    int beamMeetingPoint = 4 + sin(animationStep * 0.5) * 2; // Oscillates between ~2-6
+    int meetingPoint = 4 + sin(step * 0.4) * 1.8; // More movement
     
-    // Goku's beam (blue) from left
-    for (int i = 0; i < beamMeetingPoint; i++) {
-      strip.setPixelColor(i, 0, 0, 255);  // Blue
+    for (int i = 0; i < meetingPoint; i++) {
+      strip.setPixelColor(i, 0, 0, 200);
+    }
+    for (int i = NUM_LEDS - 1; i >= meetingPoint; i--) {
+      strip.setPixelColor(i, 200, 0, 200);
     }
     
-    // Vegeta's beam (purple) from right
-    for (int i = NUM_LEDS - 1; i >= beamMeetingPoint; i--) {
-      strip.setPixelColor(i, 255, 0, 255);  // Purple
-    }
-    
-    // Beam clash point (white with sparkle effect)
-    strip.setPixelColor(beamMeetingPoint, 255, 255, 255);
-    if (beamMeetingPoint > 0) strip.setPixelColor(beamMeetingPoint - 1, 128, 128, 255);
-    if (beamMeetingPoint < NUM_LEDS - 1) strip.setPixelColor(beamMeetingPoint + 1, 255, 128, 255);
+    // Enhanced clash effect
+    strip.setPixelColor(meetingPoint, 255, 255, 255);
+    if (meetingPoint > 0) strip.setPixelColor(meetingPoint-1, 150, 150, 255);
+    if (meetingPoint < NUM_LEDS-1) strip.setPixelColor(meetingPoint+1, 255, 150, 255);
     
     strip.show();
-    animationStep++;
+    step++;
   }
 }
 
-// PATTERN 2: All blue (static)
 void patternAllBlue() {
-  strip.clear();
   for (int i = 0; i < NUM_LEDS; i++) {
-    strip.setPixelColor(i, 0, 0, 255);  // Blue
+    strip.setPixelColor(i, 0, 0, 200);
   }
   strip.show();
 }
 
-// PATTERN 3: All purple (static)
 void patternAllPurple() {
-  strip.clear();
   for (int i = 0; i < NUM_LEDS; i++) {
-    strip.setPixelColor(i, 255, 0, 255);  // Purple
+    strip.setPixelColor(i, 200, 0, 200);
   }
   strip.show();
 }
