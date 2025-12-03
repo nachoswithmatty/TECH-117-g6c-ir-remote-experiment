@@ -313,7 +313,7 @@ void loop() {
 
 // ===== IR COMMAND HANDLER =====
 void handleIRCommand(unsigned long command) {
-  Serial.print(F("IR: "));
+  Serial.print(F("IR: 1 - Animation, 2 - All Blue, 3 - All Purple, 4 - Play Game"));
   Serial.println(command);
   
   switch(command) {
